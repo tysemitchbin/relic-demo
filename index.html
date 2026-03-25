@@ -1360,6 +1360,82 @@ align-items: center; justify-content: center;
 // ════════════════════════════════════════════════
 mapboxgl.accessToken = 'pk.eyJ1IjoidHlzZW1pdGNoYmluIiwiYSI6ImNtbjRydWtnZTAzY3gydHNjem0xOGxqNjYifQ.ru655EBUq1NbxeL27mqqnQ';
 
+const MOODS = [
+  { id: 'epic',     emoji: '🔥', label: 'Epic' },
+  { id: 'good',     emoji: '😊', label: 'Good' },
+  { id: 'tough',    emoji: '💪', label: 'Tough' },
+  { id: 'meh',      emoji: '😐', label: 'Meh' },
+  { id: 'peaceful', emoji: '🌿', label: 'Calm' },
+];
+
+// ════════════════════════════════════════════════
+// TYPE CONFIG
+// ════════════════════════════════════════════════
+const TYPE_CONFIG = {
+  Run:         { label: 'Run',         color: '#c0392b', types: ['Run','TrailRun','VirtualRun'] },
+  Ride:        { label: 'Ride',        color: '#2563eb', types: ['Ride','VirtualRide','MountainBikeRide'] },
+  Hike:        { label: 'Hike',        color: '#16a34a', types: ['Hike'] },
+  Walk:        { label: 'Walk',        color: '#7c3aed', types: ['Walk'] },
+  Alpine:      { label: 'Alpine Ski',  color: '#e11d48', types: ['AlpineSki'] },
+  Nordic:      { label: 'Nordic Ski',  color: '#0891b2', types: ['NordicSki'] },
+  Backcountry: { label: 'Backcountry', color: '#6d28d9', types: ['BackcountrySki'] },
+  Flight:      { label: 'Flight',      color: '#d97706', types: ['Flight'] },
+  Drive:       { label: 'Drive',       color: '#374151', types: ['Drive'] },
+  Other:       { label: 'Other',       color: '#92400e', types: [] },
+};
+
+function getGroup(type) {
+  for (const [k, cfg] of Object.entries(TYPE_CONFIG)) {
+    if (cfg.types.includes(type)) return k;
+  }
+  return 'Other';
+}
+function getColor(type) { return TYPE_CONFIG[getGroup(type)]?.color || '#92400e'; }
+
+// ════════════════════════════════════════════════
+// UNIFIED DATA MODEL
+// ════════════════════════════════════════════════
+// Each memory: { id, name, type, date, source, coords[], distance, duration,
+//               elevation, avgHR, maxHR, calories, avgSpeed, stravaId,
+//               note, mood, photos[{dataUrl, lat, lng, caption}],
+//               customColor, _polyline }
+
+const DB_KEY = 'relic_db_v1';
+const COLORS_KEY = 'relic_colors_v1';
+const CACHE_TS_KEY = 'relic_sync_ts';
+
+let db = {}; // id -> memory object
+let map, terrainOn = false, satelliteOn = false;
+let allMemories = [], filteredMemories = [];
+let activeTypes = new Set(Object.keys(TYPE_CONFIG));
+let activeYears = new Set();
+let selectedId = null;
+let saveTimer = null;
+let pendingGPX = null;
+
+// ── LOAD / SAVE DB ──
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    db = raw ? JSON.parse(raw) : {};
+  } catch(e) { db = {}; }
+}
+
+function saveDB() {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e) { console.warn('Storage full', e); }
+}
+
+function loadColors() {
+  try {
+    const raw = localStorage.getItem(COLORS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      Object.entries(saved).forEach(([k,v]) => { if (TYPE_CONFIG[k]) TYPE_CONFIG[k].color = v; });
+    }
+  } catch(e) {}
+}
+
+
 // ════════════════════════════════════════════════
 // DEMO MODE — simulated data, no Strava API
 // ════════════════════════════════════════════════
